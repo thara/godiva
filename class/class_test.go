@@ -5,16 +5,19 @@ import (
 	"testing"
 
 	. "github.com/thara/godiva/class"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestParse(t *testing.T) {
 	f, err := os.Open("../testdata/HelloWorld.class")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
-	_, err = Parse(f)
-	if err != nil {
-		t.Fatal(err)
-	}
+	cf, err := Parse(f)
+	require.NoError(t, err)
+
+	assert.Equal(t, uint16(0), cf.MinorVer)
+	assert.Equal(t, uint16(62), cf.MajorVer)
+	assert.Equal(t, "62.0", cf.Version())
 }
