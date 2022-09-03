@@ -8,7 +8,6 @@ import (
 )
 
 //TODO
-type cpInfo byte
 type fieldInfo byte
 type methodInfo byte
 type attributeInfo byte
@@ -19,7 +18,7 @@ type ClassFile struct {
 	MinorVer, MajorVer uint16
 
 	constantPoolCount uint16
-	constantPool      []cpInfo
+	ConstantPool      []cpInfo
 
 	accessFlags     uint16
 	thisClass       uint16
@@ -51,6 +50,19 @@ func Parse(r io.Reader) (*ClassFile, error) {
 	}
 	if err := binary.Read(r, binary.BigEndian, &cf.MajorVer); err != nil {
 		return nil, fmt.Errorf("fail to parse major_version: %w", err)
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &cf.constantPoolCount); err != nil {
+		return nil, fmt.Errorf("fail to parse constant_pool_count: %w", err)
+	}
+
+	cf.ConstantPool = make([]cpInfo, cf.constantPoolCount-1)
+	for i := 0; i < int(cf.constantPoolCount)-1; i++ {
+		cpInfo, err := parseCpInfo(r)
+		if err != nil {
+			return nil, fmt.Errorf("fail to parse constant_pool(%d): %w", i, err)
+		}
+		cf.ConstantPool[i] = cpInfo
 	}
 
 	return &cf, nil
