@@ -72,7 +72,7 @@ func Parse(r io.Reader) (*ClassFile, error) {
 	cf.AccessFlags = AccessFlags(accessFlag)
 
 	if err := binary.Read(r, binary.BigEndian, &cf.thisClass); err != nil {
-		return nil, fmt.Errorf("fail to parse access_flags: %w", err)
+		return nil, fmt.Errorf("fail to parse thisClass: %w", err)
 	}
 	if thisClass, ok := cf.lookupConstantPool(cf.thisClass); !ok {
 		return nil, fmt.Errorf("`thisClass`(%d) must be a valid index in constant_pool", cf.thisClass)
@@ -81,7 +81,7 @@ func Parse(r io.Reader) (*ClassFile, error) {
 	}
 
 	if err := binary.Read(r, binary.BigEndian, &cf.superClass); err != nil {
-		return nil, fmt.Errorf("fail to parse access_flags: %w", err)
+		return nil, fmt.Errorf("fail to parse superClass: %w", err)
 	}
 	if cf.superClass == 0 {
 		//TODO validate whether this class file represents java.lang.Object
@@ -89,7 +89,7 @@ func Parse(r io.Reader) (*ClassFile, error) {
 		if superClass, ok := cf.lookupConstantPool(cf.superClass); !ok {
 			return nil, fmt.Errorf("`superClass`(%d) must be a valid index in constant_pool", cf.thisClass)
 		} else if _, ok := superClass.(*constantClass); !ok {
-			return nil, fmt.Errorf("The constant_pool entry at `thisClass`(%d) must be a CONSTANT_Class_info structure", cf.thisClass)
+			return nil, fmt.Errorf("The constant_pool entry at `superClass`(%d) must be a CONSTANT_Class_info structure", cf.thisClass)
 		}
 	}
 
