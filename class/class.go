@@ -87,9 +87,9 @@ func Parse(r io.Reader) (*ClassFile, error) {
 		//TODO validate whether this class file represents java.lang.Object
 	} else {
 		if superClass, ok := cf.lookupConstantPool(cf.superClass); !ok {
-			return nil, fmt.Errorf("`superClass`(%d) must be a valid index in constant_pool", cf.thisClass)
+			return nil, fmt.Errorf("`superClass`(%d) must be a valid index in constant_pool", cf.superClass)
 		} else if _, ok := superClass.(*constantClass); !ok {
-			return nil, fmt.Errorf("The constant_pool entry at `superClass`(%d) must be a CONSTANT_Class_info structure", cf.thisClass)
+			return nil, fmt.Errorf("The constant_pool entry at `superClass`(%d) must be a CONSTANT_Class_info structure", cf.superClass)
 		}
 	}
 
