@@ -107,4 +107,6 @@ func TestParse(t *testing.T) {
 	if assert.EqualValues(t, ConstantKindUtf8, cf.ConstantPool[27].Tag()) {
 		assert.Equal(t, "HelloWorld.java", cf.ConstantPool[27].String())
 	}
+
+	assert.Equal(t, AccessFlagsPublic|AccessFlagsSuper, cf.AccessFlags)
 }

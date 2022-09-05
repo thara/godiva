@@ -20,7 +20,7 @@ type ClassFile struct {
 	constantPoolCount uint16
 	ConstantPool      []cpInfo
 
-	accessFlags     uint16
+	AccessFlags     AccessFlags
 	thisClass       uint16
 	superClass      uint16
 	interfaceCount  uint16
@@ -64,6 +64,12 @@ func Parse(r io.Reader) (*ClassFile, error) {
 		}
 		cf.ConstantPool[i] = cpInfo
 	}
+
+	var accessFlag uint16
+	if err := binary.Read(r, binary.BigEndian, &accessFlag); err != nil {
+		return nil, fmt.Errorf("fail to parse access_flags: %w", err)
+	}
+	cf.AccessFlags = AccessFlags(accessFlag)
 
 	return &cf, nil
 }
