@@ -112,4 +112,5 @@ func TestParse(t *testing.T) {
 
 	assert.Equal(t, "HelloWorld", cf.ThisClassName())
 	assert.Equal(t, "java/lang/Object", cf.SuperClassName())
+	assert.Empty(t, cf.InterfaceNames())
 }

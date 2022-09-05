@@ -24,7 +24,7 @@ type ClassFile struct {
 	thisClass       uint16
 	superClass      uint16
 	interfaceCount  uint16
-	interfaces      uint16
+	interfaces      []uint16
 	fieldsCount     uint16
 	fields          []fieldInfo
 	methodsCount    uint16
@@ -93,6 +93,24 @@ func Parse(r io.Reader) (*ClassFile, error) {
 		}
 	}
 
+	if err := binary.Read(r, binary.BigEndian, &cf.interfaceCount); err != nil {
+		return nil, fmt.Errorf("fail to parse interfaceCount: %w", err)
+	}
+	if cf.interfaceCount != 0 {
+		cf.interfaces = make([]uint16, cf.interfaceCount-1)
+		for i := 0; i < int(cf.interfaceCount)-1; i++ {
+			var interfaceIdx uint16
+			if err := binary.Read(r, binary.BigEndian, &interfaceIdx); err != nil {
+				return nil, fmt.Errorf("fail to parse interfaces[%d]: %w", i, err)
+			}
+			if entry, ok := cf.lookupConstantPool(interfaceIdx); !ok {
+				return nil, fmt.Errorf("`interfaces[%d]`(%d) must be a valid index in constant_pool", i, interfaceIdx)
+			} else if _, ok := entry.(*constantClass); !ok {
+				return nil, fmt.Errorf("The constant_pool entry at `interfaces[%d]`(%d) must be a CONSTANT_Class_info structure", i, interfaceIdx)
+			}
+		}
+	}
+
 	return &cf, nil
 }
 
@@ -110,6 +128,19 @@ func (c *ClassFile) SuperClassName() string {
 	class := getCpinfo[*constantClass](c, c.superClass)
 	utf8 := getCpinfo[*constantUtf8](c, class.nameIndex)
 	return utf8.String()
+}
+
+func (c *ClassFile) InterfaceNames() []string {
+	if c.interfaceCount == 0 {
+		return nil
+	}
+	names := make([]string, c.interfaceCount-1)
+	for i, idx := range c.interfaces {
+		class := getCpinfo[*constantClass](c, idx)
+		utf8 := getCpinfo[*constantUtf8](c, class.nameIndex)
+		names[i] = utf8.String()
+	}
+	return names
 }
 
 func (c *ClassFile) lookupConstantPool(i uint16) (cpInfo, bool) {
