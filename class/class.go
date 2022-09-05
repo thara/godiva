@@ -8,7 +8,6 @@ import (
 )
 
 //TODO
-type fieldInfo byte
 type methodInfo byte
 type attributeInfo byte
 
@@ -26,7 +25,7 @@ type ClassFile struct {
 	interfaceCount  uint16
 	interfaces      []*constantClass
 	fieldsCount     uint16
-	fields          []fieldInfo
+	fields          []*fieldInfo
 	methodsCount    uint16
 	methods         []methodInfo
 	attributesCount uint16
@@ -111,6 +110,10 @@ func Parse(r io.Reader) (*ClassFile, error) {
 				cf.interfaces[i] = class
 			}
 		}
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &cf.fieldsCount); err != nil {
+		return nil, fmt.Errorf("fail to parse fieldsCount: %w", err)
 	}
 
 	return &cf, nil
