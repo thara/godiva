@@ -109,4 +109,7 @@ func TestParse(t *testing.T) {
 	}
 
 	assert.Equal(t, AccessFlagsPublic|AccessFlagsSuper, cf.AccessFlags)
+
+	assert.Equal(t, "HelloWorld", cf.ThisClassName())
+	assert.Equal(t, "java/lang/Object", cf.SuperClassName())
 }
