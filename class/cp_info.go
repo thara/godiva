@@ -35,16 +35,13 @@ type cpInfo interface {
 }
 
 func parseCpInfo(r io.Reader) (cpInfo, error) {
-	var b [1]byte
-	if n, err := r.Read(b[:]); err != nil {
-		return nil, fmt.Errorf("%w", err)
-	} else if n != 1 {
-		return nil, errors.New("fail to parse cp_info tag")
+	var tag cpInfoTag
+	if err := binary.Read(r, binary.BigEndian, &tag.tag); err != nil {
+		return nil, fmt.Errorf("fail to parse cp_info tag: %w", err)
 	}
 
 	var p parser
 
-	tag := cpInfoTag{tag: b[0]}
 	switch tag.tag {
 	case ConstantKindClass:
 		c := constantClass{cpInfoTag: tag}
