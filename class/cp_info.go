@@ -32,98 +32,97 @@ const (
 type cpInfo interface {
 	Tag() byte
 	String() string
+	StructureName() string
 }
 
-func parseCpInfo(r io.Reader) (cpInfo, error) {
+func parseCpInfo(r *errReader) cpInfo {
 	var tag cpInfoTag
-	if err := binary.Read(r, binary.BigEndian, &tag.tag); err != nil {
-		return nil, fmt.Errorf("fail to parse cp_info tag: %w", err)
-	}
 
-	var p parser
+	item(r, "cp_info tag", integer(&tag.tag))
 
 	switch tag.tag {
 	case ConstantKindClass:
 		c := constantClass{cpInfoTag: tag}
-		p.readInteger(r, &c.nameIndex, "CONSTANT_Class_info's name_index")
-		return &c, p.Err
+		item(r, "CONSTANT_Class_info's name_index", integer(&c.nameIndex))
+		return &c
 	case ConstantKindFieldref:
 		c := constantFieldref{cpInfoTag: tag}
-		p.readInteger(r, &c.classIndex, "CONSTANT_Fieldref_info's class_index")
-		p.readInteger(r, &c.nameAndTypeIndex, "CONSTANT_Fieldref_info's name_and_type_index")
-		return &c, p.Err
+		item(r, "CONSTANT_Fieldref_info's class_index", integer(&c.classIndex))
+		item(r, "CONSTANT_Fieldref_info's name_and_type_index", integer(&c.nameAndTypeIndex))
+		return &c
 	case ConstantKindMethodref:
 		c := constantMethodref{cpInfoTag: tag}
-		p.readInteger(r, &c.classIndex, "CONSTANT_Methodref_info's class_index")
-		p.readInteger(r, &c.nameAndTypeIndex, "CONSTANT_Methodref_info's name_and_type_index")
-		return &c, p.Err
+		item(r, "CONSTANT_Methodref_info's class_index", integer(&c.classIndex))
+		item(r, "CONSTANT_Methodref_info's name_and_type_index", integer(&c.nameAndTypeIndex))
+		return &c
 	case ConstantKindInterfaceMethodref:
 		c := constantInterfaceMethodref{cpInfoTag: tag}
-		p.readInteger(r, &c.classIndex, "CONSTANT_InterfaceMethodref_info's class_index")
-		p.readInteger(r, &c.nameAndTypeIndex, "CONSTANT_InterfaceMethodref_info's name_and_type_index")
-		return &c, p.Err
+		item(r, "CONSTANT_InterfaceMethodref_info's class_index", integer(&c.classIndex))
+		item(r, "CONSTANT_InterfaceMethodref_info's name_and_type_index", integer(&c.nameAndTypeIndex))
+		return &c
 	case ConstantKindString:
 		c := constantString{cpInfoTag: tag}
-		p.readInteger(r, &c.stringIndex, "CONSTANT_String_info's string_index")
-		return &c, p.Err
+		item(r, "CONSTANT_String_info's string_index", integer(&c.stringIndex))
+		return &c
 	case ConstantKindInteger:
 		c := constantInteger{cpInfoTag: tag}
-		p.readBytes(r, c.bytes[:], "CONSTANT_Integer_info's bytes")
-		return &c, p.Err
+		item(r, "CONSTANT_Integer_info's bytes", bytes(c.bytes[:]))
+		return &c
 	case ConstantKindFloat:
 		c := constantFloat{cpInfoTag: tag}
-		p.readBytes(r, c.bytes[:], "CONSTANT_Float_info's bytes")
-		return &c, p.Err
+		item(r, "CONSTANT_Float_info's bytes", bytes(c.bytes[:]))
+		return &c
 	case ConstantKindLong:
 		c := constantLong{cpInfoTag: tag}
-		p.readBytes(r, c.high[:], "CONSTANT_Long_info's high_bytes")
-		p.readBytes(r, c.low[:], "CONSTANT_Long_info's low_bytes")
-		return &c, p.Err
+		item(r, "CONSTANT_Long_info's high_bytes", bytes(c.high[:]))
+		item(r, "CONSTANT_Long_info's low_bytes", bytes(c.low[:]))
+		return &c
 	case ConstantKindDouble:
 		c := constantDouble{cpInfoTag: tag}
-		p.readBytes(r, c.high[:], "CONSTANT_Double_info's high_bytes")
-		p.readBytes(r, c.low[:], "CONSTANT_Double_info's low_bytes")
-		return &c, p.Err
+		item(r, "CONSTANT_Double_info's high_bytes", bytes(c.high[:]))
+		item(r, "CONSTANT_Double_info's low_bytes", bytes(c.low[:]))
+		return &c
 	case ConstantKindNameAndType:
 		c := constantNameAndType{cpInfoTag: tag}
-		p.readInteger(r, &c.nameIndex, "CONSTANT_NameAndType_info's name_index")
-		p.readInteger(r, &c.descriptorIndex, "CONSTANT_NameAndType_info's descriptor_index")
-		return &c, p.Err
+		item(r, "CONSTANT_NameAndType_info's name_index", integer(&c.nameIndex))
+		item(r, "CONSTANT_NameAndType_info's descriptor_index", integer(&c.descriptorIndex))
+		return &c
 	case ConstantKindUtf8:
 		c := constantUtf8{cpInfoTag: tag}
-		p.readInteger(r, &c.length, "CONSTANT_Utf8_info's length")
+		item(r, "CONSTANT_Utf8_info's length", integer(&c.length))
 		c.bytes = make([]byte, c.length)
-		p.readBytes(r, c.bytes[:], "CONSTANT_Utf8_info's bytes")
-		return &c, p.Err
+		item(r, "CONSTANT_Utf8_info's bytes", bytes(c.bytes))
+		return &c
 	case ConstantKindMethodHandle:
 		c := constantMethodHandle{cpInfoTag: tag}
-		p.readInteger(r, &c.referenceKind, "CONSTANT_MethodHandle_info's reference_kind")
-		p.readInteger(r, &c.referenceIndex, "CONSTANT_MethodHandle_info's reference_index")
-		return &c, p.Err
+		item(r, "CONSTANT_MethodHandle_info's reference_kind", integer(&c.referenceKind))
+		item(r, "CONSTANT_MethodHandle_info's reference_index", integer(&c.referenceIndex))
+		return &c
 	case ConstantKindMethodType:
 		c := constantMethodType{cpInfoTag: tag}
-		p.readInteger(r, &c.descriptorIndex, "CONSTANT_MethodType_info's descriptor_index")
-		return &c, p.Err
+		item(r, "CONSTANT_MethodType_info's descriptor_index", integer(&c.descriptorIndex))
+		return &c
 	case ConstantKindDynamic:
 		c := constantDynamic{cpInfoTag: tag}
-		p.readInteger(r, &c.bootstrapMethodAttrIndex, "CONSTANT_Dynamic_info's bootstrap_method_attr_index")
-		p.readInteger(r, &c.nameAndTypeIndex, "CONSTANT_Dynamic_info's name_and_type_index")
-		return &c, p.Err
+		item(r, "CONSTANT_Dynamic_info's bootstrap_method_attr_index", integer(&c.bootstrapMethodAttrIndex))
+		item(r, "CONSTANT_Dynamic_info's name_and_type_index", integer(&c.nameAndTypeIndex))
+		return &c
 	case ConstantKindInvokeDynamic:
 		c := constantInvokeDynamic{cpInfoTag: tag}
-		p.readInteger(r, &c.bootstrapMethodAttrIndex, "CONSTANT_Dynamic_info's bootstrap_method_attr_index")
-		p.readInteger(r, &c.nameAndTypeIndex, "CONSTANT_Dynamic_info's name_and_type_index")
-		return &c, p.Err
+		item(r, "CONSTANT_InvokeDynamic_info's bootstrap_method_attr_index", integer(&c.bootstrapMethodAttrIndex))
+		item(r, "CONSTANT_InvokeDynamic_info's name_and_type_index", integer(&c.nameAndTypeIndex))
+		return &c
 	case ConstantKindModule:
 		c := constantModule{cpInfoTag: tag}
-		p.readInteger(r, &c.nameIndex, "CONSTANT_Module_info's name_index")
-		return &c, p.Err
+		item(r, "CONSTANT_Module_info's name_index", integer(&c.nameIndex))
+		return &c
 	case ConstantKindPackage:
 		c := constantPackage{cpInfoTag: tag}
-		p.readInteger(r, &c.nameIndex, "CONSTANT_Module_info's name_index")
-		return &c, p.Err
+		item(r, "CONSTANT_Module_info's name_index", integer(&c.nameIndex))
+		return &c
 	}
-	return nil, fmt.Errorf("unsupported tag for cp_info: %d", tag.tag)
+	r.err = fmt.Errorf("unsupported tag for cp_info: %d", tag.tag)
+	return nil
 }
 
 type cpInfoTag struct {
@@ -131,6 +130,46 @@ type cpInfoTag struct {
 }
 
 func (c *cpInfoTag) Tag() byte { return c.tag }
+
+func (c *cpInfoTag) StructureName() string {
+	switch c.tag {
+	case ConstantKindClass:
+		return ""
+	case ConstantKindFieldref:
+		return ""
+	case ConstantKindMethodref:
+		return ""
+	case ConstantKindInterfaceMethodref:
+		return ""
+	case ConstantKindString:
+		return ""
+	case ConstantKindInteger:
+		return ""
+	case ConstantKindFloat:
+		return ""
+	case ConstantKindLong:
+		return ""
+	case ConstantKindDouble:
+		return ""
+	case ConstantKindNameAndType:
+		return ""
+	case ConstantKindUtf8:
+		return ""
+	case ConstantKindMethodHandle:
+		return ""
+	case ConstantKindMethodType:
+		return ""
+	case ConstantKindDynamic:
+		return ""
+	case ConstantKindInvokeDynamic:
+		return ""
+	case ConstantKindModule:
+		return ""
+	case ConstantKindPackage:
+		return ""
+	}
+	return "(unregonized)"
+}
 
 type constantClass struct {
 	cpInfoTag
@@ -285,13 +324,14 @@ type parser struct {
 	Err error
 }
 
-func (p *parser) readInteger(r io.Reader, data any, name string) {
+func (p *parser) readInteger(r io.Reader, data any, name string) error {
 	if p.Err != nil {
-		return
+		return p.Err
 	}
 	if err := binary.Read(r, binary.BigEndian, data); err != nil {
 		p.Err = fmt.Errorf("fail to parse %s: %w", name, err)
 	}
+	return p.Err
 }
 
 func (p *parser) readBytes(r io.Reader, bytes []byte, name string) {

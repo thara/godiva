@@ -5,5 +5,5 @@ type fieldInfo struct {
 	nameIndex       uint16
 	descriptorIndex uint16
 	attributesCount uint16
-	attributes      []attribute
+	attributes      []attributeInfo
 }
