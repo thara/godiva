@@ -24,6 +24,17 @@ func item(e *errReader, name string, f func(e *errReader) bool) bool {
 	return f(e)
 }
 
+func parent(e *errReader, parent string) *errReader {
+	return &errReader{r: e.r, err: e.err, name: parent}
+}
+
+func child(e *errReader, fieldName string, f func(e *errReader) bool) bool {
+	if e.err != nil {
+		return false
+	}
+	return f(&errReader{r: e.r, err: e.err, name: fmt.Sprintf("%s.%s", e.name, fieldName)})
+}
+
 func integer[T constraints.Integer](data *T, vs ...validator[T]) func(e *errReader) bool {
 	return func(e *errReader) bool {
 		return readInteger(e, data, vs...)

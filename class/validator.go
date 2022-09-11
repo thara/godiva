@@ -23,30 +23,6 @@ type validator[T any] interface {
 	validate(v T, name string) error
 }
 
-func ifMatch[T constraints.Integer](value T, v validator[T]) validator[T] {
-	return &conditionalValidator[T]{cond: func(v T) bool {
-		return v == value
-	}, validator: v}
-}
-
-func ifNotMatch[T constraints.Integer](value T, v validator[T]) validator[T] {
-	return &conditionalValidator[T]{cond: func(v T) bool {
-		return v != value
-	}, validator: v}
-}
-
-type conditionalValidator[T any] struct {
-	cond      func(v T) bool
-	validator validator[T]
-}
-
-func (v *conditionalValidator[T]) validate(target T, name string) error {
-	if !v.cond(target) {
-		return nil
-	}
-	return v.validator.validate(target, name)
-}
-
 func match[T any](expected T) validator[T] {
 	return &matchValidator[T]{expected: expected}
 }
@@ -77,7 +53,7 @@ func (v *minValidator[T]) validate(target T, name string) error {
 	return fmt.Errorf("%s out of range(got:%v, min:%d)", name, target, v.minValue)
 }
 
-func max[T constraints.Integer](maxValue T) *maxValidator[T] {
+func max[T constraints.Integer](maxValue T) validator[T] {
 	return &maxValidator[T]{maxValue: maxValue}
 }
 

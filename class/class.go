@@ -8,7 +8,6 @@ import (
 
 //TODO
 type methodInfo byte
-type attributeInfo byte
 
 // ClassFile
 // https://docs.oracle.com/javase/specs/jvms/se18/html/jvms-4.html#jvms-4.1
