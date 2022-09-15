@@ -93,6 +93,9 @@ func entries[T any](es []T, f func(e *errReader) T, vs ...validator[T]) func(e *
 }
 
 func readEntries[T any](e *errReader, es []T, f func(e *errReader) T, vs ...validator[T]) bool {
+	if e.err != nil {
+		return false
+	}
 	for i := range es {
 		entry := f(e)
 		if e.err != nil {
