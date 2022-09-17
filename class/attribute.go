@@ -18,7 +18,7 @@ func parseAttributeInfoBase(er *errReader, cf *ClassFile) (base attributeInfoBas
 	return base, true
 }
 
-func parseFieldAttributeInfo(er *errReader, cf *ClassFile, f *fieldInfo) attributeInfo {
+func parseFieldAttributeInfo(er *errReader, cf *ClassFile) attributeInfo {
 	base, ok := parseAttributeInfoBase(er, cf)
 	if !ok {
 		return nil

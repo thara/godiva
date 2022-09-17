@@ -24,7 +24,7 @@ type ClassFile struct {
 	interfaceCount  uint16
 	interfaces      []uint16
 	fieldsCount     uint16
-	fields          []*fieldInfo
+	fields          []fieldInfo
 	methodsCount    uint16
 	methods         []methodInfo
 	attributesCount uint16
@@ -61,17 +61,19 @@ func Parse(r io.Reader) (*ClassFile, error) {
 	if item(&er, "interfaceCount", integer(&cf.interfaceCount)) {
 		if 0 < cf.interfaceCount {
 			cf.interfaces = make([]uint16, cf.interfaceCount-1)
-			item(&er, "interfaces", entries(cf.interfaces[:], func(er *errReader) uint16 {
+			item(&er, "interfaces", entries(cf.interfaces, func(er *errReader) uint16 {
 				var idx uint16
-				item(er, "entry", integer(&idx, constantPoolStructure[uint16, *constantClass](&cf)))
+				item(er, "interfaces", integer(&idx, constantPoolStructure[uint16, *constantClass](&cf)))
 				return idx
 			}))
 		}
 	}
 
 	if item(&er, "fieldsCount", integer(&cf.fieldsCount)) {
-		if 0 < cf.fieldsCount {
-		}
+		cf.fields = make([]fieldInfo, cf.fieldsCount)
+		item(&er, "fields", entries(cf.fields, func(er *errReader) fieldInfo {
+			return parseField(er, &cf)
+		}))
 	}
 
 	return &cf, er.err
