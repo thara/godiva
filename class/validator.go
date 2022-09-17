@@ -102,5 +102,6 @@ func (v *constantPoolStructureValidator[T, V]) validate(i T, name string) error 
 		return nil
 	}
 	var e V
-	return fmt.Errorf("constant_pool entry at `%s`(%d) must be a %s structure", name, i, e.StructureName())
+	typeName := reflect.TypeOf(e).Name()
+	return fmt.Errorf("constant_pool entry at `%s`(%d) must be a %s structure", name, i, typeName)
 }

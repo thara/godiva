@@ -32,7 +32,6 @@ const (
 type cpInfo interface {
 	Tag() byte
 	String() string
-	StructureName() string
 }
 
 func parseCpInfo(r *errReader) cpInfo {
@@ -130,46 +129,6 @@ type cpInfoTag struct {
 }
 
 func (c *cpInfoTag) Tag() byte { return c.tag }
-
-func (c *cpInfoTag) StructureName() string {
-	switch c.tag {
-	case ConstantKindClass:
-		return ""
-	case ConstantKindFieldref:
-		return ""
-	case ConstantKindMethodref:
-		return ""
-	case ConstantKindInterfaceMethodref:
-		return ""
-	case ConstantKindString:
-		return ""
-	case ConstantKindInteger:
-		return ""
-	case ConstantKindFloat:
-		return ""
-	case ConstantKindLong:
-		return ""
-	case ConstantKindDouble:
-		return ""
-	case ConstantKindNameAndType:
-		return ""
-	case ConstantKindUtf8:
-		return ""
-	case ConstantKindMethodHandle:
-		return ""
-	case ConstantKindMethodType:
-		return ""
-	case ConstantKindDynamic:
-		return ""
-	case ConstantKindInvokeDynamic:
-		return ""
-	case ConstantKindModule:
-		return ""
-	case ConstantKindPackage:
-		return ""
-	}
-	return "(unregonized)"
-}
 
 type constantClass struct {
 	cpInfoTag
