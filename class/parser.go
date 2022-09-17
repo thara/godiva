@@ -97,9 +97,10 @@ func readEntries[T any](e *errReader, es []T, f func(e *errReader) T, vs ...vali
 		return false
 	}
 	for i := range es {
-		entry := f(e)
-		if e.err != nil {
-			e.err = fmt.Errorf("fail to parse %s[%d]: %w", e.name, i, e.err)
+		er := &errReader{r: e.r, err: e.err, name: fmt.Sprintf("%s[%d]", e.name, i)}
+		entry := f(er)
+		if er.err != nil {
+			e.err = fmt.Errorf("fail to parse %s[%d]: %w", e.name, i, er.err)
 			return false
 		}
 		for _, v := range vs {
