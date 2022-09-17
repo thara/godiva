@@ -1,20 +1,18 @@
 package class
 
 import (
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
 )
 
 //TODO
-type fieldInfo byte
 type methodInfo byte
-type attributeInfo byte
 
 // ClassFile
 // https://docs.oracle.com/javase/specs/jvms/se18/html/jvms-4.html#jvms-4.1
 type ClassFile struct {
+	magic              [4]byte
 	MinorVer, MajorVer uint16
 
 	constantPoolCount uint16
@@ -24,7 +22,7 @@ type ClassFile struct {
 	thisClass       uint16
 	superClass      uint16
 	interfaceCount  uint16
-	interfaces      []*constantClass
+	interfaces      []uint16
 	fieldsCount     uint16
 	fields          []fieldInfo
 	methodsCount    uint16
@@ -34,86 +32,51 @@ type ClassFile struct {
 }
 
 func Parse(r io.Reader) (*ClassFile, error) {
-	var cf ClassFile
+	er := errReader{r: r}
 
 	var magic [4]byte
-	if n, err := r.Read(magic[:]); err != nil {
-		return nil, fmt.Errorf("%w", err)
-	} else if n == 0 {
-		return nil, errors.New("fail to parse magic number")
-	} else if magic != [4]byte{0xCA, 0xFE, 0xBA, 0xBE} {
-		return nil, errors.New("invalid magic number")
-	}
+	item(&er, "maigc number", bytes(magic[:], match([]byte{0xCA, 0xFE, 0xBA, 0xBE})))
 
-	if err := binary.Read(r, binary.BigEndian, &cf.MinorVer); err != nil {
-		return nil, fmt.Errorf("fail to parse minor_version: %w", err)
-	}
-	if err := binary.Read(r, binary.BigEndian, &cf.MajorVer); err != nil {
-		return nil, fmt.Errorf("fail to parse major_version: %w", err)
-	}
+	var cf ClassFile
+	item(&er, "minor_version", integer(&cf.MinorVer))
+	item(&er, "major_version", integer(&cf.MajorVer))
 
-	if err := binary.Read(r, binary.BigEndian, &cf.constantPoolCount); err != nil {
-		return nil, fmt.Errorf("fail to parse constant_pool_count: %w", err)
-	}
-
-	cf.ConstantPool = make([]cpInfo, cf.constantPoolCount-1)
-	for i := 0; i < int(cf.constantPoolCount)-1; i++ {
-		cpInfo, err := parseCpInfo(r)
-		if err != nil {
-			return nil, fmt.Errorf("fail to parse constant_pool(%d): %w", i, err)
-		}
-		cf.ConstantPool[i] = cpInfo
+	if item(&er, "constant_pool_count", integer(&cf.constantPoolCount)) {
+		cf.ConstantPool = make([]cpInfo, cf.constantPoolCount-1)
+		item(&er, "constant_pool", entries(cf.ConstantPool[:], parseCpInfo))
 	}
 
 	var accessFlag uint16
-	if err := binary.Read(r, binary.BigEndian, &accessFlag); err != nil {
-		return nil, fmt.Errorf("fail to parse access_flags: %w", err)
-	}
-	cf.AccessFlags = AccessFlags(accessFlag)
-
-	if err := binary.Read(r, binary.BigEndian, &cf.thisClass); err != nil {
-		return nil, fmt.Errorf("fail to parse thisClass: %w", err)
-	}
-	if thisClass, ok := cf.lookupConstantPool(cf.thisClass); !ok {
-		return nil, fmt.Errorf("`thisClass`(%d) must be a valid index in constant_pool", cf.thisClass)
-	} else if _, ok := thisClass.(*constantClass); !ok {
-		return nil, fmt.Errorf("The constant_pool entry at `thisClass`(%d) must be a CONSTANT_Class_info structure", cf.thisClass)
+	if item(&er, "access_flags", integer(&accessFlag)) {
+		cf.AccessFlags = AccessFlags(accessFlag)
 	}
 
-	if err := binary.Read(r, binary.BigEndian, &cf.superClass); err != nil {
-		return nil, fmt.Errorf("fail to parse superClass: %w", err)
-	}
-	if cf.superClass == 0 {
-		//TODO validate whether this class file represents java.lang.Object
-	} else {
-		if superClass, ok := cf.lookupConstantPool(cf.superClass); !ok {
-			return nil, fmt.Errorf("`superClass`(%d) must be a valid index in constant_pool", cf.superClass)
-		} else if _, ok := superClass.(*constantClass); !ok {
-			return nil, fmt.Errorf("The constant_pool entry at `superClass`(%d) must be a CONSTANT_Class_info structure", cf.superClass)
+	item(&er, "thisClass", integer(&cf.thisClass, constantPoolStructure[uint16, *constantClass](&cf)))
+	if item(&er, "superClass", integer(&cf.superClass)) {
+		if cf.superClass != 0 {
+			validate(&er, constantPoolStructure[uint16, *constantClass](&cf))
 		}
 	}
 
-	if err := binary.Read(r, binary.BigEndian, &cf.interfaceCount); err != nil {
-		return nil, fmt.Errorf("fail to parse interfaceCount: %w", err)
-	}
-	if cf.interfaceCount != 0 {
-		cf.interfaces = make([]*constantClass, cf.interfaceCount-1)
-		for i := 0; i < int(cf.interfaceCount)-1; i++ {
-			var interfaceIdx uint16
-			if err := binary.Read(r, binary.BigEndian, &interfaceIdx); err != nil {
-				return nil, fmt.Errorf("fail to parse interfaces[%d]: %w", i, err)
-			}
-			if entry, ok := cf.lookupConstantPool(interfaceIdx); !ok {
-				return nil, fmt.Errorf("`interfaces[%d]`(%d) must be a valid index in constant_pool", i, interfaceIdx)
-			} else if class, ok := entry.(*constantClass); !ok {
-				return nil, fmt.Errorf("The constant_pool entry at `interfaces[%d]`(%d) must be a CONSTANT_Class_info structure", i, interfaceIdx)
-			} else {
-				cf.interfaces[i] = class
-			}
+	if item(&er, "interfaceCount", integer(&cf.interfaceCount)) {
+		if 0 < cf.interfaceCount {
+			cf.interfaces = make([]uint16, cf.interfaceCount-1)
+			item(&er, "interfaces", entries(cf.interfaces, func(er *errReader) uint16 {
+				var idx uint16
+				item(er, "interfaces", integer(&idx, constantPoolStructure[uint16, *constantClass](&cf)))
+				return idx
+			}))
 		}
 	}
 
-	return &cf, nil
+	if item(&er, "fieldsCount", integer(&cf.fieldsCount)) {
+		cf.fields = make([]fieldInfo, cf.fieldsCount)
+		item(&er, "fields", entries(cf.fields, func(er *errReader) fieldInfo {
+			return parseField(er, &cf)
+		}))
+	}
+
+	return &cf, er.err
 }
 
 func (c *ClassFile) Version() string {
@@ -137,7 +100,8 @@ func (c *ClassFile) InterfaceNames() []string {
 		return nil
 	}
 	names := make([]string, c.interfaceCount-1)
-	for i, class := range c.interfaces {
+	for i, idx := range c.interfaces {
+		class := getCpinfo[*constantClass](c, idx)
 		utf8 := getCpinfo[*constantUtf8](c, class.nameIndex)
 		names[i] = utf8.String()
 	}
@@ -157,6 +121,23 @@ func (c *ClassFile) lookupConstantPool(i uint16) (cpInfo, bool) {
 func getCpinfo[T cpInfo](cf *ClassFile, i uint16) T {
 	e := must(cf.lookupConstantPool(i))
 	return e.(T)
+}
+
+var (
+	errNotFoundConstantPoolEntry    = errors.New("not found constant pool entry")
+	errInvalidConstantPoolStructure = errors.New("invalid constant pool entry's structure")
+)
+
+func lookupCpinfo[T cpInfo](cf *ClassFile, i uint16) (entry T, err error) {
+	e, ok := cf.lookupConstantPool(i)
+	if !ok {
+		return entry, errNotFoundConstantPoolEntry
+	}
+	entry, ok = e.(T)
+	if !ok {
+		return entry, errInvalidConstantPoolStructure
+	}
+	return entry, nil
 }
 
 func must[T any](v T, ok bool) T {
