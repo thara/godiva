@@ -46,6 +46,7 @@ func parseMethodAttributeInfo(er *errReader, cf *ClassFile) attributeInfo {
 	utf8 := getCpinfo[*constantUtf8](cf, base.attributeNameIndex)
 	switch utf8.String() {
 	case "Code":
+		return base.code(er, cf)
 	case "Exceptions":
 	case "RuntimeVisibleParameterAnnotations":
 	case "RuntimeInvisibleParameterAnnotations":

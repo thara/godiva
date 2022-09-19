@@ -267,6 +267,7 @@ func parseCodeAttributeInfo(er *errReader, cf *ClassFile) attributeInfo {
 	case "LocalVariableTypeTable":
 		return base.localVariableTypeTable(er, cf)
 	case "StackMapTable":
+		return base.stackMapTable(er, cf)
 	}
 
 	er.err = fmt.Errorf("unsupported attribute name at index(%d)", base.attributeNameIndex)
@@ -374,5 +375,174 @@ type attributeStackMapTable struct {
 	entries         []stackMapFrame
 }
 
-type stackMapFrame struct {
+func (a *attributeInfoBase) stackMapTable(er *errReader, cf *ClassFile) *attributeStackMapTable {
+	attr := attributeStackMapTable{attributeInfoBase: *a}
+	item(er, "number_of_entries", integer(&attr.numberOfEntries))
+	attr.entries = make([]stackMapFrame, attr.numberOfEntries)
+	item(er, "entries", entries(attr.entries, func(er *errReader) stackMapFrame {
+		var b stackMapFrameBase
+		item(er, "frame_type", integer(&b.frameType))
+		switch {
+		case 0 <= b.frameType && b.frameType <= 63:
+			return &stackMapFrameSameFrame{stackMapFrameBase: b}
+		case 64 <= b.frameType && b.frameType <= 127:
+			s := stackMapFrameSameLocals1{stackMapFrameBase: b}
+			s.stack = make([]verificationType, 1)
+			item(er, "stack", entries(s.stack, func(er *errReader) verificationType {
+				return parseVerificationType(er, cf)
+			}))
+			return &s
+		case 128 <= b.frameType && b.frameType <= 246:
+			//NOTE reserved for future use
+		case b.frameType == 247:
+			s := stackMapFrameSameLocals1Extended{stackMapFrameBase: b}
+			item(er, "offset_delta", integer(&s.offsetDelta))
+			s.stack = make([]verificationType, 1)
+			item(er, "stack", entries(s.stack, func(er *errReader) verificationType {
+				return parseVerificationType(er, cf)
+			}))
+			return &s
+		case 248 <= b.frameType && b.frameType <= 250:
+			s := stackMapFrameChopFrame{stackMapFrameBase: b}
+			item(er, "offset_delta", integer(&s.offsetDelta))
+			return &s
+		case b.frameType == 251:
+			s := stackMapFrameSameFrameExtended{stackMapFrameBase: b}
+			item(er, "offset_delta", integer(&s.offsetDelta))
+			return &s
+		case 252 <= b.frameType && b.frameType <= 254:
+			s := stackMapFrameAppendFrame{stackMapFrameBase: b}
+			item(er, "offset_delta", integer(&s.offsetDelta))
+			s.locals = make([]verificationType, b.frameType-251)
+			item(er, "locals", entries(s.locals, func(er *errReader) verificationType {
+				return parseVerificationType(er, cf)
+			}))
+			//TODO validation
+			return &s
+		case b.frameType == 255:
+			s := stackMapFrameFullFrame{stackMapFrameBase: b}
+			item(er, "offset_delta", integer(&s.offsetDelta))
+
+			item(er, "number_of_locals", integer(&s.numberOfLocals))
+			s.locals = make([]verificationType, s.numberOfLocals)
+			item(er, "locals", entries(s.locals, func(er *errReader) verificationType {
+				return parseVerificationType(er, cf)
+			}))
+
+			item(er, "number_of_stack_items", integer(&s.numberOfStackItems))
+			s.stack = make([]verificationType, s.numberOfStackItems)
+			item(er, "stack", entries(s.stack, func(er *errReader) verificationType {
+				return parseVerificationType(er, cf)
+			}))
+			//TODO validation
+			return &s
+		}
+
+		er.err = fmt.Errorf("invalid frame type(%d)", b.frameType)
+		return nil
+	}))
+	return &attr
+}
+
+type stackMapFrame interface {
+	_stackMapFrame()
+}
+
+type stackMapFrameBase struct {
+	frameType uint8
+}
+
+func (*stackMapFrameBase) _stackMapFrame() {}
+
+type stackMapFrameSameFrame struct{ stackMapFrameBase }
+type stackMapFrameSameLocals1 struct {
+	stackMapFrameBase
+	stack []verificationType
+}
+type stackMapFrameSameLocals1Extended struct {
+	stackMapFrameBase
+	offsetDelta uint16
+	stack       []verificationType
+}
+type stackMapFrameChopFrame struct {
+	stackMapFrameBase
+	offsetDelta uint16
+}
+type stackMapFrameSameFrameExtended struct {
+	stackMapFrameBase
+	offsetDelta uint16
+	stack       []verificationType
+}
+type stackMapFrameAppendFrame struct {
+	stackMapFrameBase
+	offsetDelta uint16
+	locals      []verificationType
+}
+type stackMapFrameFullFrame struct {
+	stackMapFrameBase
+	offsetDelta        uint16
+	numberOfLocals     uint16
+	locals             []verificationType
+	numberOfStackItems uint16
+	stack              []verificationType
+}
+
+type verificationType interface {
+	_verificationTypeInfo()
+}
+
+func parseVerificationType(er *errReader, cf *ClassFile) verificationType {
+	var b verificationTypeInfoBase
+	item(er, "tag", integer(&b.tag))
+	switch b.tag {
+	case 0:
+		return &verificationTypeTop{verificationTypeInfoBase: b}
+	case 1:
+		return &verificationTypeInteger{verificationTypeInfoBase: b}
+	case 2:
+		return &verificationTypeFloat{verificationTypeInfoBase: b}
+	case 5:
+		return &verificationTypeNull{verificationTypeInfoBase: b}
+	case 6:
+		return &verificationTypeUninitializedThis{verificationTypeInfoBase: b}
+	case 7:
+		v := verificationTypeObject{verificationTypeInfoBase: b}
+		item(er, "cpool_index", integer(&v.cpoolIndex))
+		return &v
+	case 8:
+		v := verificationTypeUninitialized{verificationTypeInfoBase: b}
+		item(er, "offset", integer(&v.offset))
+		return &v
+
+	case 4:
+		return &verificationTypeLong{verificationTypeInfoBase: b}
+	case 3:
+		return &verificationTypeDouble{verificationTypeInfoBase: b}
+	}
+	//TODO validate The Long_variable_info and Double_variable_info
+
+	er.err = fmt.Errorf("invalid tag(%d)", b.tag)
+	return nil
+}
+
+type verificationTypeInfoBase struct {
+	tag uint8
+}
+
+func (b *verificationTypeInfoBase) _verificationTypeInfo()
+
+type verificationTypeTop struct{ verificationTypeInfoBase }
+type verificationTypeInteger struct{ verificationTypeInfoBase }
+type verificationTypeFloat struct{ verificationTypeInfoBase }
+type verificationTypeLong struct{ verificationTypeInfoBase }
+type verificationTypeDouble struct{ verificationTypeInfoBase }
+type verificationTypeNull struct{ verificationTypeInfoBase }
+type verificationTypeUninitializedThis struct{ verificationTypeInfoBase }
+type verificationTypeObject struct {
+	verificationTypeInfoBase
+	cpoolIndex uint16
+}
+type verificationTypeUninitialized struct {
+	verificationTypeInfoBase
+	offset uint16
 }
