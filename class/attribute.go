@@ -18,35 +18,6 @@ func parseAttributeInfoBase(er *errReader, cf *ClassFile) (base attributeInfoBas
 	return base, true
 }
 
-func parseFieldAttributeInfo(er *errReader, cf *ClassFile) attributeInfo {
-	base, ok := parseAttributeInfoBase(er, cf)
-	if !ok {
-		return nil
-	}
-
-	utf8 := getCpinfo[*constantUtf8](cf, base.attributeNameIndex)
-	switch utf8.String() {
-	case "ConstantValue":
-		return base.constantValue(er, cf)
-	case "Synthetic":
-		return base.synthetic(er, cf)
-	case "Deprecated":
-		return base.deprecated(er, cf)
-	case "Signature":
-		return base.signature(er, cf)
-	case "RuntimeVisibleAnnotations":
-		return base.runtimeVisibleAnnotations(er, cf)
-	case "RuntimeInvisibleAnnotations":
-		return base.runtimeInvisibleTypeAnnotations(er, cf)
-	case "RuntimeVisibleTypeAnnotations":
-		return base.runtimeVisibleTypeAnnotations(er, cf)
-	case "RuntimeInvisibleTypeAnnotations":
-		return base.runtimeInvisibleTypeAnnotations(er, cf)
-	}
-
-	er.err = fmt.Errorf("unsupported attribute name at index(%d)", base.attributeNameIndex)
-	return nil
-}
 
 func parseCodeAttributeInfo(er *errReader, cf *ClassFile) attributeInfo {
 	base, ok := parseAttributeInfoBase(er, cf)
