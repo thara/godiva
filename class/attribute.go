@@ -18,25 +18,6 @@ func parseAttributeInfoBase(er *errReader, cf *ClassFile) (base attributeInfoBas
 	return base, true
 }
 
-
-func parseCodeAttributeInfo(er *errReader, cf *ClassFile) attributeInfo {
-	base, ok := parseAttributeInfoBase(er, cf)
-	if !ok {
-		return nil
-	}
-
-	utf8 := getCpinfo[*constantUtf8](cf, base.attributeNameIndex)
-	switch utf8.String() {
-	case "LineNumberTable":
-	case "LocalVariableTable":
-	case "LocalVariableTypeTable":
-	case "StackMapTable":
-	}
-
-	er.err = fmt.Errorf("unsupported attribute name at index(%d)", base.attributeNameIndex)
-	return nil
-}
-
 type attributeInfoBase struct {
 	attributeNameIndex uint16
 	attributeLength    uint32
@@ -214,4 +195,184 @@ func (base *attributeInfoBase) runtimeInvisibleTypeAnnotations(er *errReader, cf
 		return p
 	}))
 	return &attr
+}
+
+type attributeCode struct {
+	attributeInfoBase
+	maxStack             uint16
+	maxLocals            uint16
+	codeLength           uint32
+	code                 []uint8
+	exceptionTableLength uint16
+	exceptionTable       []exceptionTableEntry
+	attributesCount      uint16
+	attributes           []attributeInfo
+}
+
+type exceptionTableEntry struct {
+	startPC   uint16
+	endPC     uint16
+	handlerPC uint16
+	catchType uint16
+}
+
+func (base *attributeInfoBase) code(er *errReader, cf *ClassFile) *attributeCode {
+	attr := attributeCode{attributeInfoBase: *base}
+	item(er, "max_stack", integer(&attr.maxStack))
+	item(er, "max_locals", integer(&attr.maxLocals))
+
+	item(er, "code_length", integer(&attr.codeLength, min[uint32](1)))
+
+	attr.code = make([]uint8, attr.codeLength)
+	item(er, "code", bytes(attr.code))
+	//TODO validation code
+
+	item(er, "exception_table_length", integer(&attr.exceptionTableLength))
+	attr.exceptionTable = make([]exceptionTableEntry, attr.exceptionTableLength)
+	item(er, "exception_table", entries(attr.exceptionTable, func(er *errReader) exceptionTableEntry {
+		var e exceptionTableEntry
+		item(er, "start_pc", integer(&e.startPC))
+		item(er, "end_pc", integer(&e.endPC))
+		item(er, "handler_pc", integer(&e.handlerPC))
+		//TODO validation
+
+		if item(er, "catch_type", integer(&e.catchType)) {
+			if e.catchType != 0 {
+				validate(er, e.catchType, constantPoolStructure[uint16, *constantClass](cf))
+				//TODO The verifier checks that the class is Throwable or a subclass of Throwable (§4.9.2).
+			}
+		}
+		return e
+	}))
+
+	item(er, "attributes_count", integer(&attr.attributesCount))
+	item(er, "attributes", entries(attr.attributes, func(er *errReader) attributeInfo {
+		return parseCodeAttributeInfo(er, cf)
+	}))
+	return &attr
+}
+
+func parseCodeAttributeInfo(er *errReader, cf *ClassFile) attributeInfo {
+	base, ok := parseAttributeInfoBase(er, cf)
+	if !ok {
+		return nil
+	}
+
+	utf8 := getCpinfo[*constantUtf8](cf, base.attributeNameIndex)
+	switch utf8.String() {
+	case "LineNumberTable":
+		return base.lineNumberTable(er, cf)
+	case "LocalVariableTable":
+		return base.localVariableTable(er, cf)
+	case "LocalVariableTypeTable":
+		return base.localVariableTypeTable(er, cf)
+	case "StackMapTable":
+	}
+
+	er.err = fmt.Errorf("unsupported attribute name at index(%d)", base.attributeNameIndex)
+	return nil
+}
+
+type attributeLineNumberTable struct {
+	attributeInfoBase
+	lineNumberTableLength uint16
+	lineNumberTable       []lineNumberTableEntry
+}
+
+type lineNumberTableEntry struct {
+	startPC    uint16
+	lineNumber uint16
+}
+
+func (a *attributeInfoBase) lineNumberTable(er *errReader, cf *ClassFile) *attributeLineNumberTable {
+	// https://docs.oracle.com/javase/specs/jvms/se18/html/jvms-4.html#jvms-4.7.12
+	attr := attributeLineNumberTable{attributeInfoBase: *a}
+
+	item(er, "line_number_table_length", integer(&attr.lineNumberTableLength))
+	attr.lineNumberTable = make([]lineNumberTableEntry, attr.lineNumberTableLength)
+	item(er, "line_number_tablee", entries(attr.lineNumberTable, func(er *errReader) lineNumberTableEntry {
+		var e lineNumberTableEntry
+		item(er, "start_pc", integer(&e.startPC))
+		//TODO valid index into the code array of this Code attribute
+		item(er, "line_number", integer(&e.lineNumber))
+		return e
+	}))
+	return &attr
+}
+
+type attributeLocalVariableTable struct {
+	attributeInfoBase
+	localVariableTableLength uint16
+	localVariableTable       []localVariableTableEntry
+}
+
+type localVariableTableEntry struct {
+	startPC         uint16
+	length          uint16
+	nameIndex       uint16
+	descriptorIndex uint16
+	index           uint16
+}
+
+func (a *attributeInfoBase) localVariableTable(er *errReader, cf *ClassFile) *attributeLocalVariableTable {
+	// https://docs.oracle.com/javase/specs/jvms/se18/html/jvms-4.html#jvms-4.7.13
+	attr := attributeLocalVariableTable{attributeInfoBase: *a}
+	item(er, "local_variable_table_length", integer(&attr.localVariableTableLength))
+	attr.localVariableTable = make([]localVariableTableEntry, attr.localVariableTableLength)
+	item(er, "line_number_tablee", entries(attr.localVariableTable, func(er *errReader) localVariableTableEntry {
+		var e localVariableTableEntry
+		item(er, "start_pc", integer(&e.startPC))
+		//TODO valid index into the code array of this Code attribute
+		item(er, "length", integer(&e.length))
+		// TODO start_pc + length must either be a valid index into the code array of this Code attribute and be the index of the opcode of an instruction, or it must be the first index beyond the end of that code array.
+		item(er, "name_index", integer(&e.nameIndex, constantPoolStructure[uint16, *constantUtf8](cf)))
+		item(er, "descriptor_index", integer(&e.descriptorIndex, constantPoolStructure[uint16, *constantUtf8](cf)))
+		item(er, "index", integer(&e.index))
+		//TODO  must be a valid index into the local variable array of the current frame.
+		return e
+	}))
+	return &attr
+}
+
+type attributeLocalVariableTypeTable struct {
+	attributeInfoBase
+	localVariableTypeTableLength uint16
+	localVariableTypeTable       []localVariableTypeTableEntry
+}
+
+type localVariableTypeTableEntry struct {
+	startPC        uint16
+	length         uint16
+	nameIndex      uint16
+	signatureIndex uint16
+	index          uint16
+}
+
+func (a *attributeInfoBase) localVariableTypeTable(er *errReader, cf *ClassFile) *attributeLocalVariableTypeTable {
+	// https://docs.oracle.com/javase/specs/jvms/se18/html/jvms-4.html#jvms-4.7.14
+	attr := attributeLocalVariableTypeTable{attributeInfoBase: *a}
+	item(er, "local_variable_table_length", integer(&attr.localVariableTypeTableLength))
+	attr.localVariableTypeTable = make([]localVariableTypeTableEntry, attr.localVariableTypeTableLength)
+	item(er, "line_number_tablee", entries(attr.localVariableTypeTable, func(er *errReader) localVariableTypeTableEntry {
+		var e localVariableTypeTableEntry
+		item(er, "start_pc", integer(&e.startPC))
+		//TODO valid index into the code array of this Code attribute
+		item(er, "length", integer(&e.length))
+		// TODO start_pc + length must either be a valid index into the code array of this Code attribute and be the index of the opcode of an instruction, or it must be the first index beyond the end of that code array.
+		item(er, "name_index", integer(&e.nameIndex, constantPoolStructure[uint16, *constantUtf8](cf)))
+		item(er, "signature_index", integer(&e.signatureIndex, constantPoolStructure[uint16, *constantUtf8](cf)))
+		item(er, "index", integer(&e.index))
+		//TODO  must be a valid index into the local variable array of the current frame.
+		return e
+	}))
+	return &attr
+}
+
+type attributeStackMapTable struct {
+	attributeInfoBase
+	numberOfEntries uint16
+	entries         []stackMapFrame
+}
+
+type stackMapFrame struct {
 }

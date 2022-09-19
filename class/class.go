@@ -6,9 +6,6 @@ import (
 	"io"
 )
 
-//TODO
-type methodInfo byte
-
 // ClassFile
 // https://docs.oracle.com/javase/specs/jvms/se18/html/jvms-4.html#jvms-4.1
 type ClassFile struct {
@@ -73,6 +70,13 @@ func Parse(r io.Reader) (*ClassFile, error) {
 		cf.fields = make([]fieldInfo, cf.fieldsCount)
 		item(&er, "fields", entries(cf.fields, func(er *errReader) fieldInfo {
 			return parseField(er, &cf)
+		}))
+	}
+
+	if item(&er, "methodsCount", integer(&cf.methodsCount)) {
+		cf.methods = make([]methodInfo, cf.methodsCount)
+		item(&er, "methods", entries(cf.methods, func(er *errReader) methodInfo {
+			return parseMethod(er, &cf)
 		}))
 	}
 
